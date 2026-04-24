@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通譯費計算系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        input[type="datetime-local"] {
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-2xl mx-auto">
+        <div class="card p-6 mb-6">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">通譯費計算程式</h1>
+            
+            <!-- 時間輸入區 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">開始時間</label>
+                    <input type="datetime-local" id="startTime" onchange="calculate()">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">結束時間</label>
+                    <input type="datetime-local" id="endTime" onchange="calculate()">
+                </div>
+            </div>
+
+            <!-- 休息時間設定 -->
+            <div class="mb-6 border-t pt-4">
+                <div class="flex items-center mb-3">
+                    <input type="checkbox" id="hasBreak" class="w-4 h-4 text-blue-600 rounded" onchange="toggleBreak()">
+                    <label for="hasBreak" class="ml-2 text-sm font-medium text-gray-700">是否有休息時間</label>
+                </div>
+                
+                <div id="breakSection" class="hidden space-y-3 bg-gray-50 p-4 rounded-lg">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">休息開始</label>
+                            <input type="datetime-local" id="breakStart" onchange="calculate()">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">休息結束</label>
+                            <input type="datetime-local" id="breakEnd" onchange="calculate()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 計費標準說明 -->
+            <div class="bg-blue-50 p-4 rounded-lg text-xs text-blue-800 mb-6">
+                <p class="font-bold mb-1">計費說明：</p>
+                <ul class="list-disc ml-4 space-y-1">
+                    <li>日間 (06-22時)：前2小時 1000元/時，第3小時起 500元/時。</li>
+                    <li>夜間 (其餘時段)：前2小時 2000元/時，第3小時起 1000元/時。</li>
+                    <li>第3小時起不滿30分以30分計，滿30分不滿1小時以1小時計。</li>
+                </ul>
+            </div>
+
+            <!-- 結果顯示 -->
+            <div id="resultArea" class="border-t pt-6 hidden">
+                <div class="space-y-2">
+                    <div class="flex justify-between text-gray-600">
+                        <span>總服務時數：</span>
+                        <span id="displayTotalTime" class="font-medium text-gray-900">-</span>
+                    </div>
+                    <div class="flex justify-between text-gray-600">
+                        <span>扣除休息時數：</span>
+                        <span id="displayBreakTime" class="font-medium text-red-500">-</span>
+                    </div>
+                    <div class="flex justify-between text-gray-600">
+                        <span>計費時數(日間/夜間)：</span>
+                        <span id="displayRatio" class="font-medium text-gray-900">-</span>
+                    </div>
+                    <div class="flex justify-between text-xl font-bold text-blue-700 border-t mt-4 pt-4">
+                        <span>合計通譯費：</span>
+                        <span id="displayTotalFee">NT$ 0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="errorMessage" class="text-red-500 text-center text-sm mt-4 hidden">
+                請確保結束時間晚於開始時間。
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleBreak() {
+            const section = document.getElementById('breakSection');
+            const hasBreak = document.getElementById('hasBreak').checked;
+            section.classList.toggle('hidden', !hasBreak);
+            calculate();
+        }
+
+        function calculate() {
+            const startVal = document.getElementById('startTime').value;
+            const endVal = document.getElementById('endTime').value;
+            
+            if (!startVal || !endVal) return;
+
+            let start = new Date(startVal);
+            let end = new Date(endVal);
+
+            if (end <= start) {
+                document.getElementById('errorMessage').classList.remove('hidden');
+                document.getElementById('resultArea').classList.add('hidden');
+                return;
+            }
+            document.getElementById('errorMessage').classList.add('hidden');
+            document.getElementById('resultArea').classList.remove('hidden');
+
+            // 處理休息時間
+            let breakMinutes = 0;
+            const hasBreak = document.getElementById('hasBreak').checked;
+            if (hasBreak) {
+                const bStartVal = document.getElementById('breakStart').value;
+                const bEndVal = document.getElementById('breakEnd').value;
+                if (bStartVal && bEndVal) {
+                    let bStart = new Date(bStartVal);
+                    let bEnd = new Date(bEndVal);
+                    if (bEnd > bStart && bStart >= start && bEnd <= end) {
+                        breakMinutes = (bEnd - bStart) / 60000;
+                    }
+                }
+            }
+
+            // 計算每一分鐘的歸屬 (日間或夜間)
+            let current = new Date(start);
+            let dayMins = 0;
+            let nightMins = 0;
+            
+            // 排除休息時段後的有效分鐘數分配
+            const breakStart = hasBreak && document.getElementById('breakStart').value ? new Date(document.getElementById('breakStart').value) : null;
+            const breakEnd = hasBreak && document.getElementById('breakEnd').value ? new Date(document.getElementById('breakEnd').value) : null;
+
+            while (current < end) {
+                // 檢查是否在休息時間內
+                const isInBreak = breakStart && breakEnd && current >= breakStart && current < breakEnd;
+                
+                if (!isInBreak) {
+                    const hour = current.getHours();
+                    if (hour >= 6 && hour < 22) {
+                        dayMins++;
+                    } else {
+                        nightMins++;
+                    }
+                }
+                current.setMinutes(current.getMinutes() + 1);
+            }
+
+            const totalActiveMins = dayMins + nightMins;
+            const totalActiveHours = totalActiveMins / 60;
+
+            // 計算費用邏輯
+            let totalFee = 0;
+            
+            // 比例計算 (假設比例分配在前2小時與後續時間)
+            const dayRatio = dayMins / totalActiveMins;
+            const nightRatio = nightMins / totalActiveMins;
+
+            if (totalActiveHours <= 2) {
+                // 前兩小時內
+                totalFee = (dayMins / 60) * 1000 + (nightMins / 60) * 2000;
+            } else {
+                // 拆分前2小時與第3小時起
+                const first2HourMins = 120;
+                const after2HourMins = totalActiveMins - 120;
+
+                // 前2小時費用 (按比例拆分日夜)
+                const first2DayMins = 120 * dayRatio;
+                const first2NightMins = 120 * nightRatio;
+                totalFee += (first2DayMins / 60) * 1000;
+                totalFee += (first2NightMins / 60) * 2000;
+
+                // 第3小時起計費規則 (未滿30分以30分計，滿30分未滿1小時以1小時計)
+                const after2HoursRaw = after2HourMins / 60;
+                const fullHours = Math.floor(after2HoursRaw);
+                const remainingMins = after2HourMins % 60;
+                
+                let billedAfter2Hours = fullHours;
+                if (remainingMins > 0 && remainingMins < 30) {
+                    billedAfter2Hours += 0.5;
+                } else if (remainingMins >= 30) {
+                    billedAfter2Hours += 1;
+                }
+
+                // 剩餘時間費用 (按比例拆分日夜)
+                totalFee += (billedAfter2Hours * dayRatio) * 500;
+                totalFee += (billedAfter2Hours * nightRatio) * 1000;
+            }
+
+            // 更新 UI
+            document.getElementById('displayTotalTime').innerText = formatMins( (end - start) / 60000 );
+            document.getElementById('displayBreakTime').innerText = breakMinutes > 0 ? formatMins(breakMinutes) : "無";
+            document.getElementById('displayRatio').innerText = `日間 ${formatMins(dayMins)} / 夜間 ${formatMins(nightMins)}`;
+            document.getElementById('displayTotalFee').innerText = `NT$ ${Math.round(totalFee).toLocaleString()}`;
+        }
+
+        function formatMins(mins) {
+            const h = Math.floor(mins / 60);
+            const m = Math.round(mins % 60);
+            return `${h}時${m}分`;
+        }
+    </script>
+</body>
+</html>
